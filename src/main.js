@@ -1,7 +1,7 @@
 // import './styles/style.css'
 
 
-console.log('cdl & fromage')
+console.log('rdv')
 
 // Configuration commune
 // const API_URL = import.meta.env.VITE_API_URL || 'https://www.tourbiz-gestion.com/user/das75/webservice-internet/ws.php';
@@ -105,7 +105,7 @@ class FormHandler {
             this.submitButton.innerText = 'Envoi en cours...';
         }
         try {
-            const NETLIFY_FUNCTION_URL = 'https://api-cdl.netlify.app/.netlify/functions/submitForm';
+            const NETLIFY_FUNCTION_URL = 'https://api-rdv.netlify.app/.netlify/functions/submitForm';
             console.log('Envoi des données au formulaire:', this.getFormData());
 
             const response = await fetch(NETLIFY_FUNCTION_URL, {

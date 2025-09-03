@@ -86,7 +86,7 @@ class FormHandler {
         }
         
         try {
-            const NETLIFY_FUNCTION_URL = 'https://api-cdl.netlify.app/.netlify/functions/submitForm';
+            const NETLIFY_FUNCTION_URL = 'https://api-rdv.netlify.app/.netlify/functions/submitForm';
             console.log('Envoi des données au formulaire:', this.getFormData());
 
             const response = await fetch(NETLIFY_FUNCTION_URL, {
