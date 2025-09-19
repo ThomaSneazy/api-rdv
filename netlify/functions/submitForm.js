@@ -1,16 +1,19 @@
 // netlify/functions/submitForm.js
+// En Netlify Functions, il faut importer fetch différemment selon la version de Node
 let fetch;
 try {
+    // Pour Node.js 18+
     fetch = global.fetch;
 } catch (e) {
+    // Pour Node.js < 18
     fetch = require('node-fetch');
 }
 
 exports.handler = async (event, context) => {
-    // Gestion des requêtes OPTIONS
+    // Gestion explicite des requêtes OPTIONS (preflight)
     if (event.httpMethod === 'OPTIONS') {
         return {
-            statusCode: 204,
+            statusCode: 204, // No content pour les requêtes OPTIONS
             headers: {
                 'Access-Control-Allow-Origin': '*',
                 'Access-Control-Allow-Methods': 'POST, OPTIONS',
@@ -25,7 +28,6 @@ exports.handler = async (event, context) => {
     const API_URL = process.env.API_URL;
     const LOGIN = process.env.CONTACT_LOGIN;
     const PASSWORD = process.env.CONTACT_PASSWORD;
-    const CODE_REVENDEUR = process.env.CODE_REVENDEUR; // Nouvelle variable pour le code revendeur
 
     if (!event.body) {
         return {
@@ -64,84 +66,36 @@ exports.handler = async (event, context) => {
             };
         }
         
-        // Récupération et préparation des données
+        // Récupération des données du formulaire
         const formData = JSON.parse(event.body);
-        
-        // Ajout des identifiants et du code revendeur
         formData.login = LOGIN;
         formData.pass = PASSWORD;
-        
-        // Si un code revendeur est configuré, l'utiliser ; sinon garder celui du formulaire
-        if (CODE_REVENDEUR) {
-            formData.code_revendeur = CODE_REVENDEUR;
-        }
 
-        console.log("URL de l'API:", API_URL);
-        console.log("Action:", formData.action);
-        console.log("Données envoyées (sans identifiants):", {
-            ...formData,
-            login: '[HIDDEN]',
-            pass: '[HIDDEN]'
-        });
+        console.log("Tentative d'envoi à l'API:", API_URL);
+        console.log("Données:", JSON.stringify(formData));
 
-        // Préparation des données selon la méthode
-        let postData;
-        if (formData.action === 'booking_multiple') {
-            // Pour booking_multiple, on envoie les données en JSON
-            postData = formData;
-        } else {
-            // Pour les autres méthodes, on utilise URLSearchParams
-            postData = new URLSearchParams(formData);
-        }
-
-        console.log("Type de données envoyées:", typeof postData);
-
-        // Configuration de la requête
-        const requestOptions = {
-            method: 'POST',
-            headers: {}
-        };
-
-        if (formData.action === 'booking_multiple') {
-            // Pour booking_multiple, certains paramètres peuvent être en JSON
-            const formDataForUrl = new URLSearchParams();
-            
-            // Ajouter tous les champs simples
-            Object.keys(formData).forEach(key => {
-                if (key !== 'prestation' && typeof formData[key] !== 'object') {
-                    formDataForUrl.append(key, formData[key]);
-                }
-            });
-            
-            // Ajouter les prestations (format spécial pour l'API)
-            if (formData.prestation && Array.isArray(formData.prestation)) {
-                formData.prestation.forEach((prestation, index) => {
-                    Object.keys(prestation).forEach(field => {
-                        formDataForUrl.append(`prestation[${index}][${field}]`, prestation[field]);
-                    });
-                });
-            }
-            
-            requestOptions.headers['Content-Type'] = 'application/x-www-form-urlencoded';
-            requestOptions.body = formDataForUrl;
-        } else {
-            requestOptions.headers['Content-Type'] = 'application/x-www-form-urlencoded';
-            requestOptions.body = postData;
-        }
-
-        // Ajout du timeout
+        // Appel à l'API externe
         const timeoutPromise = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Timeout - L\'API n\'a pas répondu dans le délai imparti')), 15000)
+            setTimeout(() => reject(new Error('Timeout - L\'API n\'a pas répondu dans le délai imparti')), 10000)
         );
         
-        const fetchPromise = fetch(API_URL, requestOptions);
+        const fetchPromise = fetch(API_URL, {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'Accept-Charset': 'UTF-8'
+            },
+            body: new URLSearchParams(formData)
+        });
         
+        // Course entre le fetch et le timeout
         const response = await Promise.race([fetchPromise, timeoutPromise]);
 
+        // Traitement de la réponse
         if (!response.ok) {
             console.error(`Erreur HTTP: ${response.status} ${response.statusText}`);
             return {
-                statusCode: 502,
+                statusCode: 502, // Bad Gateway
                 headers: {
                     'Access-Control-Allow-Origin': '*',
                     'Content-Type': 'application/json'
@@ -154,32 +108,13 @@ exports.handler = async (event, context) => {
             };
         }
         
-        // Traitement de la réponse
+        // Tentative de parse du JSON
         let responseText;
         try {
             responseText = await response.text();
-            console.log("Réponse brute de l'API:", responseText);
-
-            // Tentative de parsing JSON
-            let result;
-            try {
-                result = JSON.parse(responseText);
-                console.log("Réponse parsée:", result);
-            } catch (parseError) {
-                // Si ce n'est pas du JSON, peut-être une réponse simple pour booking_multiple
-                console.log("Réponse non-JSON, probablement une réponse simple:", responseText);
-                
-                // Pour booking_multiple, une réponse simple peut être le numéro de commande ou "TEST OK"
-                if (formData.action === 'booking_multiple') {
-                    result = {
-                        erreur: 0,
-                        id_commande: responseText.trim(),
-                        message: responseText.trim()
-                    };
-                } else {
-                    throw parseError;
-                }
-            }
+            console.log("Réponse brute:", responseText);
+            const result = JSON.parse(responseText);
+            console.log("Réponse de l'API (parsée):", JSON.stringify(result));
 
             return {
                 statusCode: 200,
@@ -189,11 +124,8 @@ exports.handler = async (event, context) => {
                 },
                 body: JSON.stringify(result)
             };
-
         } catch (parseError) {
-            console.error("Erreur de parsing:", parseError);
-            console.error("Réponse brute:", responseText);
-            
+            console.error("Erreur de parsing JSON:", parseError);
             return {
                 statusCode: 502,
                 headers: {
@@ -202,14 +134,12 @@ exports.handler = async (event, context) => {
                 },
                 body: JSON.stringify({ 
                     error: "Impossible de parser la réponse de l'API", 
-                    responseText: responseText,
-                    parseError: parseError.message
+                    responseText: responseText
                 })
             };
         }
-        
     } catch (error) {
-        console.error("Erreur générale:", error);
+        console.error("Erreur lors du traitement:", error);
         return {
             statusCode: 500,
             headers: {
@@ -218,7 +148,8 @@ exports.handler = async (event, context) => {
             },
             body: JSON.stringify({ 
                 error: "Erreur de soumission", 
-                details: error.message
+                details: error.message,
+                stack: error.stack
             })
         };
     }
