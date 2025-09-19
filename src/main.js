@@ -99,7 +99,7 @@ class FormHandler {
     async submitForm(e) {
         e.preventDefault();
         
-        // Désactiver le bouton pour éviter les soumissions multiples
+        // Désactiver le bouton pour éviter les soumissions multiple
         if (this.submitButton) {
             this.submitButton.disabled = true;
             this.submitButton.innerText = 'Envoi en cours...';
