@@ -41,7 +41,7 @@ exports.handler = async (event, context) => {
     }
 
     try {
-        // Vérifications des variables d'environnement
+        // Vérifications des variables d'environnemen
         if (!API_URL) {
             console.error("API_URL n'est pas définie");
             return {
