@@ -24,7 +24,7 @@ const FORMS_CONFIG = {
         formId: 'savForm',
         submitId: 'savSubmit',
         prefix: 'sav_',
-        objectCommande: 'Demande SAV',
+        objectCommande: 'Demande contact',
         memoFields: ['message']
     },
     privatisation: {
